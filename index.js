@@ -1,6 +1,16 @@
 const express = require("express");
 const cors = require("cors");
 const puppeteer = require("puppeteer");
+const { execSync } = require("child_process");
+
+// Try to install Chrome browser if it's not already installed
+try {
+  console.log("Checking if Chrome is installed for Puppeteer...");
+  execSync("npx puppeteer browsers install chrome");
+  console.log("Chrome installation checked/completed");
+} catch (error) {
+  console.warn("Could not install Chrome:", error.message);
+}
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -25,7 +35,7 @@ app.post("/download-tiktok", async (req, res) => {
       });
     }
 
-    // Configure Puppeteer for a cloud environment
+    // Configure Puppeteer with explicit executable path
     const browser = await puppeteer.launch({
       args: [
         "--no-sandbox",
@@ -38,6 +48,8 @@ app.post("/download-tiktok", async (req, res) => {
         "--disable-gpu",
       ],
       headless: "new",
+      // Try to use Chrome from system path if available
+      ignoreDefaultArgs: ["--disable-extensions"],
     });
 
     const page = await browser.newPage();
