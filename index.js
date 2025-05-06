@@ -9,56 +9,87 @@ const port = process.env.PORT || 3000;
 app.use(express.json());
 app.use(cors());
 
+// Add a simple health check endpoint
 app.get("/", (req, res) => {
-  res.send("Hello World!");
+  res.status(200).send("TikTok Downloader API is running!");
 });
 
 app.post("/download-tiktok", async (req, res) => {
-  console.log(req.body);
-  const url = req.body.url;
+  try {
+    console.log("Request body:", req.body);
+    const url = req.body.url;
 
-  if (!url) {
-    res.status(400).json({
-      message: "URL is required",
+    if (!url) {
+      return res.status(400).json({
+        message: "URL is required",
+      });
+    }
+
+    // Configure Puppeteer for a cloud environment
+    const browser = await puppeteer.launch({
+      args: [
+        "--no-sandbox",
+        "--disable-setuid-sandbox",
+        "--disable-dev-shm-usage",
+        "--disable-accelerated-2d-canvas",
+        "--no-first-run",
+        "--no-zygote",
+        "--single-process",
+        "--disable-gpu",
+      ],
+      headless: "new",
     });
-    return;
-  }
 
-  const browser = await puppeteer.launch();
-  const page = await browser.newPage();
+    const page = await browser.newPage();
 
-  await page.goto(url);
+    // Set a reasonable timeout
+    await page.setDefaultNavigationTimeout(60000);
 
-  // log the page title
-  const title = await page.title();
-  console.log(title);
+    console.log(`Navigating to ${url}`);
+    await page.goto(url, { waitUntil: "networkidle2" });
 
-  // get all video elements
-  const videoElements = await page.$$("video source");
+    // log the page title
+    const title = await page.title();
+    console.log("Page title:", title);
 
-  // get src attribute of each source element
-  const videoSrcs = await Promise.all(
-    videoElements.map(async (videoElement) => {
-      const src = await page.evaluate(
-        (el) => el.getAttribute("src"),
-        videoElement
-      );
-      return src;
-    })
-  );
-  if (videoSrcs.length === 0) {
-    res.status(404).json({
-      message: "No video sources found",
+    // get all video elements
+    console.log("Looking for video elements...");
+    const videoElements = await page.$$("video source");
+    console.log(`Found ${videoElements.length} video elements`);
+
+    if (videoElements.length === 0) {
+      await browser.close();
+      return res.status(404).json({
+        message: "No video sources found",
+      });
+    }
+
+    // get src attribute of each source element
+    const videoSrcs = await Promise.all(
+      videoElements.map(async (videoElement) => {
+        const src = await page.evaluate(
+          (el) => el.getAttribute("src"),
+          videoElement
+        );
+        return src;
+      })
+    );
+
+    console.log("Video sources:", videoSrcs);
+
+    await browser.close();
+
+    return res.status(200).json({
+      message: "Video sources retrieved successfully",
+      videoSrcs: videoSrcs[0],
     });
-    return;
+  } catch (error) {
+    console.error("Error occurred:", error);
+    return res.status(500).json({
+      message: "An error occurred while processing your request",
+      error: error.message,
+    });
   }
-
-  res.status(200).json({
-    message: "Video sources retrieved successfully",
-    videoSrcs: videoSrcs[0],
-  });
-
-  await browser.close();
 });
 
 app.listen(port, () => {
