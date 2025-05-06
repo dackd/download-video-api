@@ -3,7 +3,7 @@ const cors = require("cors");
 const puppeteer = require("puppeteer");
 
 const app = express();
-const port = 3000;
+const port = process.env.PORT || 3000;
 
 // Add middleware to parse JSON bodies
 app.use(express.json());
@@ -58,5 +58,5 @@ app.post("/download-tiktok", async (req, res) => {
 });
 
 app.listen(port, () => {
-  console.log("Example app listening on port 3000!");
+  console.log(`Server running on port ${port}`);
 });
